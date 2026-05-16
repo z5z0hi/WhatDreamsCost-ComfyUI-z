@@ -47,7 +47,7 @@ app.registerExtension({
         topBar.style.cssText = "display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; width: 100%; gap: 8px;";
         
         const uploadBtn = document.createElement("button");
-        uploadBtn.innerText = "Upload Images";
+        uploadBtn.innerText = "Load Image";
         uploadBtn.style.cssText = `
             background: #3a3f4b; color: white; border: 1px solid #5a5f6b; 
             padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;
@@ -603,7 +603,238 @@ app.registerExtension({
             return false;
         };
 
-        uploadBtn.onclick = () => fileInput.click();
+        async function openImagePicker() {
+            const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+
+            function isImageFilename(name) {
+                if (!name || typeof name !== "string") return false;
+                const lower = name.toLowerCase();
+                for (const ext of IMAGE_EXTENSIONS) {
+                    if (lower.endsWith(ext)) return true;
+                }
+                return false;
+            }
+
+            function extractImageListFromObjectInfo(data) {
+                if (!data || typeof data !== "object") return [];
+
+                const nodeInfo = data.LoadImage || data;
+                const imageField = nodeInfo?.input?.required?.image;
+                if (!imageField) return [];
+
+                if (Array.isArray(imageField)) {
+                    if (Array.isArray(imageField[0])) {
+                        return imageField[0].filter(v => typeof v === "string");
+                    }
+                    return imageField.filter(v => typeof v === "string");
+                }
+
+                if (typeof imageField === "string") {
+                    return [imageField];
+                }
+
+                if (typeof imageField === "object") {
+                    if (Array.isArray(imageField.options)) {
+                        return imageField.options.filter(v => typeof v === "string");
+                    }
+                    if (Array.isArray(imageField.values)) {
+                        return imageField.values.filter(v => typeof v === "string");
+                    }
+                }
+
+                return [];
+            }
+
+            let imageFiles = [];
+            try {
+                const resp = await api.fetchApi("/object_info/LoadImage");
+                if (!resp.ok) {
+                    const text = await resp.text().catch(() => "");
+                    alert("Load Image failed: " + resp.status + " " + (text || "failed to fetch /object_info/LoadImage"));
+                    return;
+                }
+                const data = await resp.json();
+                imageFiles = extractImageListFromObjectInfo(data)
+                    .filter(isImageFilename)
+                    .sort((a, b) => a.localeCompare(b));
+            } catch (e) {
+                console.error("Failed to fetch LoadImage object info:", e);
+                alert("Load Image failed: " + e.message);
+                return;
+            }
+
+            if (imageFiles.length === 0) {
+                alert("No images found in the ComfyUI input folder.");
+                return;
+            }
+
+            const overlay = document.createElement("div");
+            overlay.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background: rgba(0,0,0,0.6); z-index: 99999;
+                display: flex; align-items: center; justify-content: center;
+            `;
+
+            const modal = document.createElement("div");
+            modal.style.cssText = `
+                background: #1e1e2e; border: 1px solid #444; border-radius: 8px;
+                width: 520px; max-height: 80vh; display: flex; flex-direction: column;
+                font-family: ui-sans-serif, system-ui, sans-serif; color: #ddd;
+            `;
+
+            const header = document.createElement("div");
+            header.style.cssText = `
+                padding: 12px 16px; border-bottom: 1px solid #333;
+                display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+            `;
+
+            const title = document.createElement("span");
+            title.innerText = "Select Images";
+            title.style.cssText = "font-weight: bold; font-size: 14px;";
+
+            const searchInput = document.createElement("input");
+            searchInput.type = "text";
+            searchInput.placeholder = "Search...";
+            searchInput.style.cssText = `
+                flex: 1; background: #2a2a3e; border: 1px solid #444; border-radius: 4px;
+                color: #ddd; padding: 4px 8px; font-size: 12px; outline: none;
+            `;
+
+            const selectAllBtn = document.createElement("button");
+            selectAllBtn.innerText = "Select All";
+            selectAllBtn.style.cssText = `
+                background: #3a3f4b; color: white; border: 1px solid #5a5f6b;
+                padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;
+            `;
+
+            header.appendChild(title);
+            header.appendChild(searchInput);
+            header.appendChild(selectAllBtn);
+            modal.appendChild(header);
+
+            const listContainer = document.createElement("div");
+            listContainer.style.cssText = `
+                flex: 1; overflow-y: auto; padding: 8px;
+            `;
+
+            const allChecked = new Set();
+
+            function renderList(filter) {
+                listContainer.innerHTML = "";
+                const filtered = filter
+                    ? imageFiles.filter(f => f.toLowerCase().includes(filter.toLowerCase()))
+                    : imageFiles;
+
+                filtered.forEach(name => {
+                    const row = document.createElement("div");
+                    row.style.cssText = `
+                        display: flex; align-items: center; gap: 10px;
+                        padding: 6px 8px; border-radius: 4px; cursor: pointer;
+                        transition: background 0.15s;
+                    `;
+                    row.onmouseenter = () => { row.style.background = "#2a2a3e"; };
+                    row.onmouseleave = () => { row.style.background = "transparent"; };
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.checked = allChecked.has(name);
+                    checkbox.style.cssText = "cursor: pointer; flex-shrink: 0;";
+
+                    const thumb = document.createElement("img");
+                    thumb.src = api.apiURL("/view?filename=" + encodeURIComponent(name) + "&type=input");
+                    thumb.style.cssText = `
+                        width: 48px; height: 48px; object-fit: contain;
+                        border-radius: 3px; background: #000; flex-shrink: 0;
+                    `;
+
+                    const label = document.createElement("span");
+                    label.innerText = name;
+                    label.style.cssText = "font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
+
+                    function toggle(forceValue) {
+                        const newVal = forceValue !== undefined ? forceValue : !checkbox.checked;
+                        checkbox.checked = newVal;
+                        if (newVal) { allChecked.add(name); }
+                        else { allChecked.delete(name); }
+                    }
+
+                    checkbox.onchange = (e) => {
+                        if (e.target.checked) allChecked.add(name);
+                        else allChecked.delete(name);
+                    };
+
+                    row.onclick = (e) => {
+                        if (e.target !== checkbox) toggle();
+                    };
+
+                    row.appendChild(checkbox);
+                    row.appendChild(thumb);
+                    row.appendChild(label);
+                    listContainer.appendChild(row);
+                });
+            }
+
+            searchInput.oninput = () => renderList(searchInput.value);
+
+            selectAllBtn.onclick = () => {
+                const filter = searchInput.value.toLowerCase();
+                const visible = filter
+                    ? imageFiles.filter(f => f.toLowerCase().includes(filter))
+                    : imageFiles;
+                const allVisibleChecked = visible.length > 0 && visible.every(f => allChecked.has(f));
+                visible.forEach(f => {
+                    if (allVisibleChecked) allChecked.delete(f);
+                    else allChecked.add(f);
+                });
+                renderList(searchInput.value);
+            };
+
+            renderList("");
+            modal.appendChild(listContainer);
+
+            const footer = document.createElement("div");
+            footer.style.cssText = `
+                padding: 10px 16px; border-top: 1px solid #333;
+                display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
+            `;
+
+            const cancelBtn = document.createElement("button");
+            cancelBtn.innerText = "Cancel";
+            cancelBtn.style.cssText = `
+                background: #3a3f4b; color: white; border: 1px solid #5a5f6b;
+                padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+            `;
+
+            const confirmBtn = document.createElement("button");
+            confirmBtn.innerText = "Confirm";
+            confirmBtn.style.cssText = `
+                background: #4CAF50; color: white; border: 1px solid #3d8b40;
+                padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+            `;
+
+            cancelBtn.onclick = () => overlay.remove();
+            overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+            confirmBtn.onclick = () => {
+                if (allChecked.size === 0) { overlay.remove(); return; }
+                const selected = Array.from(allChecked);
+                const current = (pathsWidget?.value || "").trim();
+                const existing = current ? current.split('\n').map(s => s.trim()).filter(s => s) : [];
+                setWidgetValue(existing.concat(selected), false);
+                overlay.remove();
+            };
+
+            footer.appendChild(cancelBtn);
+            footer.appendChild(confirmBtn);
+            modal.appendChild(footer);
+
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            searchInput.focus();
+        }
+
+        uploadBtn.onclick = () => openImagePicker();
         fileInput.onchange = (e) => handleFiles(e.target.files);
         
         container.ondragover = (e) => { 

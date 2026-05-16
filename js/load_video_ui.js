@@ -218,6 +218,147 @@ app.registerExtension({
                     fileInput.click();
                 });
 
+                async function openVideoPicker() {
+                    const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.avi', '.mov', '.m4v', '.flv', '.wmv']);
+
+                    function isVideoFilename(name) {
+                        if (!name || typeof name !== "string") return false;
+                        const lower = name.toLowerCase();
+                        for (const ext of VIDEO_EXTENSIONS) {
+                            if (lower.endsWith(ext)) return true;
+                        }
+                        return false;
+                    }
+
+                    function extractFileList(data) {
+                        if (!data || typeof data !== "object") return [];
+                        const keys = Object.keys(data);
+                        if (keys.length === 0) return [];
+                        const nodeInfo = data[keys[0]] || data;
+                        const field = nodeInfo?.input?.required;
+                        if (!field) return [];
+                        for (const key of Object.keys(field)) {
+                            const f = field[key];
+                            if (Array.isArray(f)) {
+                                if (Array.isArray(f[0])) return f[0].filter(v => typeof v === "string");
+                                if (f[0] === "COMBO" && f[1]?.options) return f[1].options.filter(v => typeof v === "string");
+                            }
+                        }
+                        return [];
+                    }
+
+                    let videoFiles = [];
+                    try {
+                        const resp = await api.fetchApi("/object_info/LoadAudio");
+                        if (!resp.ok) return;
+                        const data = await resp.json();
+                        videoFiles = extractFileList(data).filter(isVideoFilename).sort((a, b) => a.localeCompare(b));
+                    } catch (e) {
+                        console.error("Failed to fetch video list:", e);
+                        return;
+                    }
+
+                    if (videoFiles.length === 0) {
+                        alert("No video files found in the ComfyUI input folder.");
+                        return;
+                    }
+
+                    let selectedFile = null;
+
+                    const overlay = document.createElement("div");
+                    overlay.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;";
+
+                    const modal = document.createElement("div");
+                    modal.style.cssText = "background:#1e1e2e;border:1px solid #444;border-radius:8px;width:520px;max-height:80vh;display:flex;flex-direction:column;font-family:ui-sans-serif,system-ui,sans-serif;color:#ddd;";
+
+                    const header = document.createElement("div");
+                    header.style.cssText = "padding:12px 16px;border-bottom:1px solid #333;display:flex;align-items:center;gap:10px;flex-shrink:0;";
+
+                    const title = document.createElement("span");
+                    title.innerText = "Select Video";
+                    title.style.cssText = "font-weight:bold;font-size:14px;";
+
+                    const searchInput = document.createElement("input");
+                    searchInput.type = "text";
+                    searchInput.placeholder = "Search...";
+                    searchInput.style.cssText = "flex:1;background:#2a2a3e;border:1px solid #444;border-radius:4px;color:#ddd;padding:4px 8px;font-size:12px;outline:none;";
+
+                    header.appendChild(title);
+                    header.appendChild(searchInput);
+                    modal.appendChild(header);
+
+                    const listContainer = document.createElement("div");
+                    listContainer.style.cssText = "flex:1;overflow-y:auto;padding:8px;";
+
+                    function renderList(filter) {
+                        listContainer.innerHTML = "";
+                        const filtered = filter ? videoFiles.filter(f => f.toLowerCase().includes(filter.toLowerCase())) : videoFiles;
+                        filtered.forEach(name => {
+                            const row = document.createElement("div");
+                            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:4px;cursor:pointer;transition:background 0.15s;";
+                            if (selectedFile === name) row.style.background = "#1a4a2a";
+                            row.onmouseenter = () => { if (selectedFile !== name) row.style.background = "#2a2a3e"; };
+                            row.onmouseleave = () => { row.style.background = selectedFile === name ? "#1a4a2a" : "transparent"; };
+
+                            const icon = document.createElement("span");
+                            icon.innerHTML = "&#9654;";
+                            icon.style.cssText = "font-size:14px;width:32px;text-align:center;flex-shrink:0;color:#aaa;";
+
+                            const label = document.createElement("span");
+                            label.innerText = name;
+                            label.style.cssText = "font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+
+                            row.onclick = () => {
+                                selectedFile = name;
+                                renderList(searchInput.value);
+                            };
+
+                            row.appendChild(icon);
+                            row.appendChild(label);
+                            listContainer.appendChild(row);
+                        });
+                    }
+
+                    searchInput.oninput = () => renderList(searchInput.value);
+                    renderList("");
+                    modal.appendChild(listContainer);
+
+                    const footer = document.createElement("div");
+                    footer.style.cssText = "padding:10px 16px;border-top:1px solid #333;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;";
+
+                    const cancelBtn = document.createElement("button");
+                    cancelBtn.innerText = "Cancel";
+                    cancelBtn.style.cssText = "background:#3a3f4b;color:white;border:1px solid #5a5f6b;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;";
+
+                    const confirmBtn = document.createElement("button");
+                    confirmBtn.innerText = "Confirm";
+                    confirmBtn.style.cssText = "background:#4CAF50;color:white;border:1px solid #3d8b40;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;";
+
+                    cancelBtn.onclick = () => overlay.remove();
+                    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+                    confirmBtn.onclick = () => {
+                        if (!selectedFile) { overlay.remove(); return; }
+                        videoWidget.value = selectedFile;
+                        node.updatePreview(selectedFile);
+                        if (startTimeWidget) startTimeWidget.value = 0;
+                        if (endTimeWidget) endTimeWidget.value = 0;
+                        node.syncFramesFromTime();
+                        overlay.remove();
+                    };
+
+                    footer.appendChild(cancelBtn);
+                    footer.appendChild(confirmBtn);
+                    modal.appendChild(footer);
+                    overlay.appendChild(modal);
+                    document.body.appendChild(overlay);
+                    searchInput.focus();
+                }
+
+                this.addWidget("button", "load video", null, () => {
+                    openVideoPicker();
+                });
+
                 // Define robust upload logic
                 const uploadFile = async (file) => {
                     try {
