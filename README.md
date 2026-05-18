@@ -11,7 +11,7 @@ All of my nodes are created with the help of AI, so there may or may not be redu
 <table>
   <tr>
     <td>
-      <p align="center">Overview Video</p>
+      <p align="center">LTX Sequencer Overview Video</p>
       <a href="https://www.youtube.com/watch?v=aXDIr8eNovI">
         <img src="https://img.youtube.com/vi/aXDIr8eNovI/0.jpg" alt="Overview Video" width="400">
       </a>
@@ -31,7 +31,19 @@ All of my nodes are created with the help of AI, so there may or may not be redu
 - Run `git clone https://github.com/WhatDreamscost/WhatDreamsCost-ComfyUI`
 - Or download through the ComfyUI Manager.
 
+**❗❗IMPORTANT❗❗**
+
+If your trying to install LTX Director through the manager, make sure you download the nightly version. The manager is delayed in showing the latest updates.
+ALSO you need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest version as well. You cannot use this node without updating ComfyUI-LTXVideo!
+
 # 🔄 Recent Updates
+
+**v1.3.3**
+  * **LTX Director Hotfix 2**
+    - Fixed duration_seconds input issue.
+    - Made both duration widgets visible at all times now
+    - Implemented audio latent fix to improve compatibility
+
 
 **v1.3.2**
   * **LTX Director Hotfix**
