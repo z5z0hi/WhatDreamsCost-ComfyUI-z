@@ -11,15 +11,15 @@ All of my nodes are created with the help of AI, so there may or may not be redu
 <table>
   <tr>
     <td>
-      <p align="center">LTX Sequencer Overview Video</p>
-      <a href="https://www.youtube.com/watch?v=aXDIr8eNovI">
-        <img src="https://img.youtube.com/vi/aXDIr8eNovI/0.jpg" alt="Overview Video" width="400">
+      <p align="center">LTX Director Trailer</p>
+      <a href="https://www.youtube.com/watch?v=fZgtkRcu4_k">
+        <img src="https://img.youtube.com/vi/fZgtkRcu4_k/0.jpg" alt="LTX Director Trailer" width="400">
       </a>
     </td>
     <td>
-      <p align="center">Prompting and Keyframing Guide</p>
-      <a href="https://www.youtube.com/watch?v=ZY4hsvTzbas">
-        <img src="https://img.youtube.com/vi/ZY4hsvTzbas/0.jpg" alt="Prompting and Keyframing Guide" width="400">
+      <p align="center">LTX Director Tutorial</p>
+      <a href="https://www.youtube.com/watch?v=vM60pJJqqEI">
+        <img src="https://img.youtube.com/vi/vM60pJJqqEI/0.jpg" alt="LTX Director Tutorial" width="400">
       </a>
     </td>
   </tr>
@@ -33,10 +33,14 @@ All of my nodes are created with the help of AI, so there may or may not be redu
 
 **❗❗IMPORTANT❗❗**
 
-If your trying to install LTX Director through the manager, make sure you download the nightly version. The manager is delayed in showing the latest updates.
-ALSO you need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest version as well. You cannot use this node without updating ComfyUI-LTXVideo!
+If you don't see the latest version (v1.3.9) yet in the manager then just download the nightly version (or fetch the updates to update the list to see the latest version). 
+Also you will need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest version as well. You cannot use this node without updating ComfyUI-LTXVideo!
 
 # 🔄 Recent Updates
+**v1.3.9**
+  * **Fixed recent updates not showing in the manager**
+
+It took like 5 tries but I finally got it working 🤦‍♂️
 
 **v1.3.3**
   * **LTX Director Hotfix 2**
@@ -50,7 +54,7 @@ ALSO you need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest versi
     - Fixed epsilon input overlapping custom_width input
     - Fixed invisible widgets in nodes 2.0 when toggling widget visibility through settings menu
 
-If anyone find anymore bugs or has idea for improvements please let me know! 
+If anyone finds anymore bugs or has idea for improvements please let me know! 
 
 
 **v1.3.1**
@@ -217,15 +221,7 @@ Please note that due to ComfyUI limitations (and the fact that this node doesn't
 An upgraded Load Audio node. Features a simple interface to easily trim audio. Also allows dragging and dropping files (fixes the original node that doesn't allow dropping in videos). Also compatible with nodes 2.0.
 
 # 💡 Workflows
-<img width="3120" height="990" alt="LTX I2V First Last Frame 3 Stage Workflow v6" src="https://github.com/user-attachments/assets/c993ef2f-ac4b-4091-a7f6-5ff1674c3718" />
-<br>
-<br>
-This is a compact LTX 2.3 workflow for I2V and First Frame, Middle Frame, Last frame video generation.
-I seperated and organized everything into subraphs to make things as clean as possible, and added toggles to customize the workflow quickly.
-
 Download workflows here: https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI/tree/main/example_workflows
-
-Or drag and drop the image into ComfyUI to import workflow.
 
 # ❗ Known Issues
 
@@ -233,6 +229,6 @@ Fixed everything so far. If there are any other issue or bugs you find please le
 
 # 💡 Additional Info
 
-I made these nodes knowing almost nothing about python and a beginner level knowledge of javascript. Feel free to suggest improvements, and if you run into any bugs let me know.
+Feel free to suggest improvements, and if you run into any bugs let me know!
 
 For those asking, I mainly used gemini to create these nodes.
