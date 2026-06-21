@@ -2237,13 +2237,13 @@ class TimelineEditor {
     const uploadMotionBtn = document.createElement("button");
     uploadMotionBtn.className = "pr-btn";
     uploadMotionBtn.innerHTML = `${ICONS.motion} Add IC Video`;
-    uploadMotionBtn.addEventListener("click", () => this.motionFileInput.click());
+    uploadMotionBtn.addEventListener("click", () => this.openMotionPicker());
     this.uploadMotionBtn = uploadMotionBtn;
 
     const uploadVideoBtn = document.createElement("button");
     uploadVideoBtn.className = "pr-btn";
     uploadVideoBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> Add Video`;
-    uploadVideoBtn.addEventListener("click", () => this.videoFileInput.click());
+    uploadVideoBtn.addEventListener("click", () => this.openVideoPicker());
     this.uploadVideoBtn = uploadVideoBtn;
 
     const addTextBtn = document.createElement("button");
@@ -4522,6 +4522,343 @@ class TimelineEditor {
       const data = await resp.json();
       const subfolder = data.subfolder || "";
       return subfolder ? subfolder + "/" + data.name : data.name;
+    }
+  }
+
+  // --- Video Picker from ComfyUI Input Folder ---
+  async _fetchVideoFileList() {
+    const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mkv', '.avi', '.mov', '.m4v', '.flv', '.wmv']);
+    function isVideoFilename(name) {
+      if (!name || typeof name !== "string") return false;
+      const lower = name.toLowerCase();
+      for (const ext of VIDEO_EXTENSIONS) { if (lower.endsWith(ext)) return true; }
+      return false;
+    }
+    function extractList(data) {
+      if (!data || typeof data !== "object") return [];
+      const keys = Object.keys(data);
+      if (keys.length === 0) return [];
+      const nodeInfo = data[keys[0]] || data;
+      const field = nodeInfo?.input?.required;
+      if (!field) return [];
+      for (const key of Object.keys(field)) {
+        const f = field[key];
+        if (Array.isArray(f)) {
+          if (Array.isArray(f[0])) return f[0].filter(v => typeof v === "string");
+          if (f[0] === "COMBO" && f[1]?.options) return f[1].options.filter(v => typeof v === "string");
+          return f.filter(v => typeof v === "string");
+        }
+      }
+      return [];
+    }
+    try {
+      const resp = await api.fetchApi("/object_info/LoadAudio");
+      if (!resp.ok) return [];
+      const data = await resp.json();
+      return extractList(data).filter(isVideoFilename).sort((a, b) => a.localeCompare(b));
+    } catch (e) {
+      console.error("Failed to fetch video list:", e);
+      return [];
+    }
+  }
+
+  _showVideoPickerModal(titleText, onConfirm) {
+    return (async () => {
+      const videoFiles = await this._fetchVideoFileList();
+      if (videoFiles.length === 0) {
+        alert("No video files found in the ComfyUI input folder.");
+        return;
+      }
+      let selectedFile = null;
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;";
+      const modal = document.createElement("div");
+      modal.style.cssText = "background:#1e1e2e;border:1px solid #444;border-radius:8px;width:520px;max-height:80vh;display:flex;flex-direction:column;font-family:ui-sans-serif,system-ui,sans-serif;color:#ddd;";
+      const header = document.createElement("div");
+      header.style.cssText = "padding:12px 16px;border-bottom:1px solid #333;display:flex;align-items:center;gap:10px;flex-shrink:0;";
+      const title = document.createElement("span");
+      title.innerText = titleText;
+      title.style.cssText = "font-weight:bold;font-size:14px;";
+      const searchInput = document.createElement("input");
+      searchInput.type = "text";
+      searchInput.placeholder = "Search...";
+      searchInput.style.cssText = "flex:1;background:#2a2a3e;border:1px solid #444;border-radius:4px;color:#ddd;padding:4px 8px;font-size:12px;outline:none;";
+      header.appendChild(title);
+      header.appendChild(searchInput);
+      modal.appendChild(header);
+      const listContainer = document.createElement("div");
+      listContainer.style.cssText = "flex:1;overflow-y:auto;padding:8px;";
+      function renderList(filter) {
+        listContainer.innerHTML = "";
+        const filtered = filter ? videoFiles.filter(f => f.toLowerCase().includes(filter.toLowerCase())) : videoFiles;
+        filtered.forEach(name => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:4px;cursor:pointer;transition:background 0.15s;";
+          if (selectedFile === name) row.style.background = "#1a4a2a";
+          row.onmouseenter = () => { if (selectedFile !== name) row.style.background = "#2a2a3e"; };
+          row.onmouseleave = () => { row.style.background = selectedFile === name ? "#1a4a2a" : "transparent"; };
+          const icon = document.createElement("span");
+          icon.innerHTML = "&#9654;";
+          icon.style.cssText = "font-size:14px;width:32px;text-align:center;flex-shrink:0;color:#aaa;";
+          const label = document.createElement("span");
+          label.innerText = name;
+          label.style.cssText = "font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          row.onclick = () => { selectedFile = name; renderList(searchInput.value); };
+          row.appendChild(icon);
+          row.appendChild(label);
+          listContainer.appendChild(row);
+        });
+      }
+      searchInput.oninput = () => renderList(searchInput.value);
+      renderList("");
+      modal.appendChild(listContainer);
+      const footer = document.createElement("div");
+      footer.style.cssText = "padding:10px 16px;border-top:1px solid #333;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.innerText = "Cancel";
+      cancelBtn.style.cssText = "background:#3a3f4b;color:white;border:1px solid #5a5f6b;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;";
+      const confirmBtn = document.createElement("button");
+      confirmBtn.innerText = "Confirm";
+      confirmBtn.style.cssText = "background:#4CAF50;color:white;border:1px solid #3d8b40;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;";
+      cancelBtn.onclick = () => overlay.remove();
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      confirmBtn.onclick = () => { if (selectedFile) { onConfirm(selectedFile); } overlay.remove(); };
+      footer.appendChild(cancelBtn);
+      footer.appendChild(confirmBtn);
+      modal.appendChild(footer);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      searchInput.focus();
+    })();
+  }
+
+  openVideoPicker() {
+    this._showVideoPickerModal("Select Video", (name) => this.loadVideosByName([name]));
+  }
+
+  openMotionPicker() {
+    this._showVideoPickerModal("Select Motion Video", (name) => this.loadMotionsByName([name]));
+  }
+
+  async loadVideosByName(filenames, targetFrameStart = null) {
+    const frameRate = this.getFrameRate();
+
+    for (const videoFile of filenames) {
+      await new Promise((resolve) => {
+        const videoUrl = api.apiURL("/view?filename=" + encodeURIComponent(videoFile) + "&type=input");
+        const vid = document.createElement('video');
+        vid.crossOrigin = "Anonymous";
+        vid.preload = 'auto';
+        vid.muted = true;
+
+        vid.onloadeddata = () => {
+          vid.onloadeddata = null;
+          const clipDurationSecs = vid.duration || 1;
+          const clipFrames = Math.max(1, Math.ceil(clipDurationSecs * frameRate));
+          let newLength = clipFrames;
+          let newStart = targetFrameStart;
+
+          if (newStart === null) {
+            newStart = 0;
+            this.timeline.segments.sort((a, b) => a.start - b.start);
+            for (let i = 0; i < this.timeline.segments.length; i++) {
+              let seg = this.timeline.segments[i];
+              if (newStart + newLength <= seg.start) break;
+              newStart = Math.max(newStart, seg.start + seg.length);
+            }
+          }
+
+          const currentDuration = this.getVisualDurationFrames();
+
+          if (targetFrameStart !== null) {
+            let tempId = "TEMP_" + Date.now();
+            let tempVidId = tempId + "_v";
+            let tempAudId = tempId + "_a";
+            this.timeline.segments.push({ id: tempVidId, start: newStart, length: newLength, type: "temp" });
+            this.timeline.audioSegments.push({ id: tempAudId, start: newStart, length: newLength, type: "temp" });
+            let physicsCenter = newStart + this.getFrameRate() / 2;
+            let resultSegments = this._applyCenterDragPhysics(this.timeline.segments, tempVidId, newStart, physicsCenter, currentDuration, currentDuration, 1);
+            let resultAudioSegments = this._applyCenterDragPhysics(this.timeline.audioSegments, tempAudId, newStart, physicsCenter, currentDuration, currentDuration, 1);
+            this._resolveGlobalPhysics(resultSegments, resultAudioSegments, currentDuration, this.timeline.segments, this.timeline.audioSegments);
+            for (let shiftedSeg of resultSegments) {
+              let original = this.timeline.segments.find(s => s.id === shiftedSeg.id);
+              if (original) original.start = shiftedSeg.resolvedStart !== undefined ? shiftedSeg.resolvedStart : shiftedSeg.start;
+            }
+            for (let shiftedSib of resultAudioSegments) {
+              let originalSib = this.timeline.audioSegments.find(s => s.id === shiftedSib.id);
+              if (originalSib) originalSib.start = shiftedSib.resolvedStart !== undefined ? shiftedSib.resolvedStart : shiftedSib.start;
+            }
+            let tempVidSeg = resultSegments.find(s => s.id === tempVidId);
+            newStart = tempVidSeg.start;
+            this.timeline.segments = this.timeline.segments.filter(s => s.id !== tempVidId);
+            this.timeline.audioSegments = this.timeline.audioSegments.filter(s => s.id !== tempAudId);
+            targetFrameStart = newStart + newLength;
+          }
+
+          const sharedId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+          const vidSeg = {
+            id: sharedId + "_v",
+            type: "video",
+            start: newStart,
+            length: newLength,
+            trimStart: 0,
+            videoDurationFrames: clipFrames,
+            imageFile: videoFile,
+            fileName: videoFile,
+            prompt: "",
+            videoEl: vid
+          };
+          const audSeg = {
+            id: sharedId + "_a",
+            type: "audio",
+            start: newStart,
+            length: newLength,
+            trimStart: 0,
+            audioDurationFrames: clipFrames,
+            audioFile: videoFile,
+            fileName: videoFile,
+            waveformPeaks: []
+          };
+
+          vid.currentTime = 0.01;
+          vid.onseeked = () => {
+            vid.onseeked = null;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.min(vid.videoWidth, 512);
+            canvas.height = Math.round((vid.videoHeight / vid.videoWidth) * canvas.width);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+            vidSeg.imageB64 = canvas.toDataURL('image/jpeg');
+            const imgObj = new Image();
+            imgObj.onload = () => { vidSeg.imgObj = imgObj; this.render(); };
+            imgObj.src = vidSeg.imageB64;
+
+            this.timeline.segments.push(vidSeg);
+            this.timeline.audioSegments.push(audSeg);
+            this.timeline.segments.sort((a, b) => a.start - b.start);
+            this.timeline.audioSegments.sort((a, b) => a.start - b.start);
+            if (!this.retakeMode) { this.growTimelineIfNeeded(vidSeg.start + vidSeg.length); }
+            this.selectionType = "image";
+            this.selectedIndex = this.timeline.segments.findIndex(s => s.id === vidSeg.id);
+            this.updateUIFromSelection();
+            this.commitChanges(true);
+            resolve();
+            this._ensureThumbnails(vidSeg);
+
+            // Query server for extracted WAV audio file and waveform peaks
+            api.fetchApi(`/ltx_director_get_audio?filename=${encodeURIComponent(videoFile)}`)
+              .then(r => r.json())
+              .then(res => {
+                if (res.audio_file && res.peaks) {
+                  for (let s of this.timeline.audioSegments) {
+                    if (s.audioFile === videoFile || s.id === audSeg.id) {
+                      s.audioFile = res.audio_file;
+                      s.waveformPeaks = res.peaks;
+                      this._preloadAudioSegment(s);
+                    }
+                  }
+                }
+                this.commitChanges(true);
+                this.render();
+              })
+              .catch(err => { console.error("[LTXDirector] Server audio extraction query failed:", err); this.render(); });
+          };
+        };
+        vid.onerror = (e) => { console.error("Video load error from input folder:", e); resolve(); };
+        vid.src = videoUrl;
+      });
+    }
+  }
+
+  async loadMotionsByName(filenames, targetFrameStart = null) {
+    const frameRate = this.getFrameRate();
+
+    for (const videoFile of filenames) {
+      await new Promise((resolve) => {
+        const videoUrl = api.apiURL("/view?filename=" + encodeURIComponent(videoFile) + "&type=input");
+        const vid = document.createElement('video');
+        vid.crossOrigin = "Anonymous";
+        vid.preload = 'auto';
+        vid.muted = true;
+
+        vid.onloadeddata = () => {
+          vid.onloadeddata = null;
+          const clipDurationSecs = vid.duration || 1;
+          const clipFrames = Math.max(1, Math.ceil(clipDurationSecs * frameRate));
+          let newLength = clipFrames;
+          let newStart = targetFrameStart;
+
+          if (newStart === null) {
+            newStart = 0;
+            this.timeline.motionSegments.sort((a, b) => a.start - b.start);
+            for (let i = 0; i < this.timeline.motionSegments.length; i++) {
+              let s = this.timeline.motionSegments[i];
+              if (newStart + newLength <= s.start) break;
+              newStart = Math.max(newStart, s.start + s.length);
+            }
+          }
+
+          const currentDuration = this.getVisualDurationFrames();
+          if (targetFrameStart !== null) {
+            let tempId = "TEMP_" + Date.now();
+            this.timeline.motionSegments.push({ id: tempId, start: newStart, length: newLength, type: "temp" });
+            let result = this._applyCenterDragPhysics(this.timeline.motionSegments, tempId, newStart, newStart + newLength / 2, currentDuration, currentDuration, 1);
+            for (let shiftedSeg of result) {
+              let original = this.timeline.motionSegments.find(s => s.id === shiftedSeg.id);
+              if (original) original.start = shiftedSeg.resolvedStart !== undefined ? shiftedSeg.resolvedStart : shiftedSeg.start;
+            }
+            let tempSeg = this.timeline.motionSegments.find(s => s.id === tempId);
+            newStart = tempSeg.start;
+            this.timeline.motionSegments = this.timeline.motionSegments.filter(s => s.id !== tempId);
+            targetFrameStart = newStart + newLength;
+          }
+
+          const seg = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            type: "motion_video",
+            start: newStart,
+            length: newLength,
+            trimStart: 0,
+            videoDurationFrames: clipFrames,
+            videoFile: videoFile,
+            fileName: videoFile,
+            videoStrength: 1.0,
+            videoAttentionStrength: 0.65,
+            resampleMode: "nearest",
+            previewThumbs: [],
+            previewThumbSourceFrames: clipFrames,
+            videoEl: vid
+          };
+
+          vid.currentTime = 0.01;
+          vid.onseeked = () => {
+            vid.onseeked = null;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.min(vid.videoWidth, 512);
+            canvas.height = Math.round((vid.videoHeight / vid.videoWidth) * canvas.width);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+            seg.imageB64 = canvas.toDataURL('image/jpeg');
+            const imgObj = new Image();
+            imgObj.onload = () => { seg.imgObj = imgObj; this.render(); };
+            imgObj.src = seg.imageB64;
+
+            this.timeline.motionSegments.push(seg);
+            this.timeline.motionSegments.sort((a, b) => a.start - b.start);
+            if (!this.retakeMode) { this.growTimelineIfNeeded(seg.start + seg.length); }
+            this.selectionType = "motion";
+            this.selectedIndex = this.timeline.motionSegments.findIndex(s => s.id === seg.id);
+            this.updateUIFromSelection();
+            this.commitChanges(true);
+            resolve();
+            this._ensureThumbnails(seg);
+            const isOverrideAudio = !!(this.node.properties.overrideAudio || this.timeline.overrideAudio);
+            if (isOverrideAudio) { this._preloadMotionAudioSegment(seg); }
+          };
+        };
+        vid.onerror = (e) => { console.error("Motion video load error from input folder:", e); resolve(); };
+        vid.src = videoUrl;
+      });
     }
   }
 

@@ -40,6 +40,8 @@ Also you will need to update ComfyUI-LTXVideo and ComfyUI-KJNodes to the latest 
 
 # 🔄 Recent Updates
 
+> **Note: This is a fork with input folder picker enhancements.** The load buttons (Add Image, Add Audio, Add Video, Add IC Video in LTX Director; Load Image in Multi Image Loader; Load Video in Load Video UI) now open a picker dialog listing files already in the ComfyUI `input` folder, instead of only the browser file dialog. Original upload/drag-drop/paste mechanisms are preserved. See [`docs/input-folder-picker-changes.md`](docs/input-folder-picker-changes.md) for details.
+
 **v2.0.0**
 * **Massive Update to LTX Director. I will add the full list of changes later.**
 
